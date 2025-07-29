@@ -1,0 +1,36 @@
+hala-madrid-housing/
+│
+├── database/
+│   ├── schema.sql
+│   ├── functions.sql
+│   └── policies.sql
+│
+├── backend/
+│   ├── edge-functions/
+│   │   ├── property-matching.ts
+│   │   ├── user-preferences.ts
+│   │   └── recommendation-engine.ts
+│   │
+│   └── supabase/
+│       ├── config.toml
+│       └── migrations/
+│
+├── frontend/
+│   ├── components/
+│   │   ├── PropertySearch.tsx
+│   │   ├── NeighborhoodMap.tsx
+│   │   └── UserPreferencesForm.tsx
+│   │
+│   ├── hooks/
+│   │   ├── usePropertySearch.ts
+│   │   └── useRecommendations.ts
+│   │
+│   └── pages/
+│       ├── index.tsx
+│       ├── search.tsx
+│       └── profile.tsx
+│
+├── ai-models/
+│   └── recommendation-model.py
+│
+└── README.md
