@@ -1,0 +1,48 @@
+-- Advanced Property Matching Function
+CREATE OR REPLACE FUNCTION match_properties(
+  p_user_id uuid, 
+  p_max_budget numeric, 
+  p_preferred_districts text[]
+) RETURNS TABLE (
+  property_id bigint, 
+  match_score numeric
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    p.id, 
+    (
+      (1 - ABS(p.price - p_max_budget) / p_max_budget) * 0.5 +
+      (CASE WHEN p.neighborhood_id IN (
+        SELECT id FROM neighborhoods 
+        WHERE name = ANY(p_preferred_districts)
+      ) THEN 1 ELSE 0 END) * 0.5
+    ) AS match_score
+  FROM properties p
+  WHERE p.price <= p_max_budget
+  ORDER BY match_score DESC
+  LIMIT 10;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Neighborhood Recommendation Function
+CREATE OR REPLACE FUNCTION recommend_neighborhoods(
+  p_user_id uuid
+) RETURNS TABLE (
+  neighborhood_name text,
+  recommendation_score numeric
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    n.name, 
+    (
+      n.safety_index * 0.3 + 
+      (CASE WHEN n.metro_proximity THEN 1 ELSE 0 END) * 0.2 +
+      n.walkability_score * 0.5
+    ) AS recommendation_score
+  FROM neighborhoods n
+  ORDER BY recommendation_score DESC
+  LIMIT 5;
+END;
+$$ LANGUAGE plpgsql;
