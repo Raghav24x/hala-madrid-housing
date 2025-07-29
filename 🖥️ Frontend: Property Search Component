@@ -1,0 +1,44 @@
+import React, { useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+function PropertySearch() {
+  const [filters, setFilters] = useState({
+    district: '',
+    priceRange: [0, 5000],
+    bedrooms: 1,
+    amenities: []
+  });
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const searchProperties = async () => {
+    const { data, error } = await supabase
+      .from('properties')
+      .select('*')
+      .match(filters)
+      .order('match_score', { ascending: false });
+
+    if (error) {
+      console.error('Search Error:', error);
+    }
+
+    return data;
+  }
+
+  return (
+    <div className="property-search-container">
+      {/* Filterable, responsive property grid */}
+      <form onSubmit={(e) => {
+        e.preventDefault();
+        searchProperties();
+      }}>
+        {/* Filter inputs */}
+      </form>
+    </div>
+  );
+}
+
+export default PropertySearch;
