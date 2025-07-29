@@ -1,0 +1,16 @@
+-- Neighborhood Data Policy
+CREATE POLICY "Public can view neighborhood data" 
+ON neighborhoods FOR SELECT USING (true);
+
+-- Property Visibility Policy
+CREATE POLICY "Users can view properties" 
+ON properties FOR SELECT 
+USING (
+  auth.role() = 'authenticated' OR 
+  price < 500000
+);
+
+-- User Preferences Privacy Policy
+CREATE POLICY "Users can only see their preferences" 
+ON user_preferences FOR SELECT 
+USING (auth.uid() = user_id);
