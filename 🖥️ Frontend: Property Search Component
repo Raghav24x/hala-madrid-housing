@@ -1,44 +1,210 @@
-import React, { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+mport { useState } from "react";
+// If using shadcn: import { Button, Input } from "@/components/ui";
 
-function PropertySearch() {
-  const [filters, setFilters] = useState({
-    district: '',
-    priceRange: [0, 5000],
-    bedrooms: 1,
-    amenities: []
-  });
+type Props = {
+  onSearch: (q: { maxBudget?: number; districts: string[] }) => void;
+};
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
-  const searchProperties = async () => {
-    const { data, error } = await supabase
-      .from('properties')
-      .select('*')
-      .match(filters)
-      .order('match_score', { ascending: false });
-
-    if (error) {
-      console.error('Search Error:', error);
-    }
-
-    return data;
-  }
+export default function PropertySearch({ onSearch }: Props) {
+  const [budget, setBudget] = useState<string>("");
+  const [districts, setDistricts] = useState<string>("");
 
   return (
-    <div className="property-search-container">
-      {/* Filterable, responsive property grid */}
-      <form onSubmit={(e) => {
-        e.preventDefault();
-        searchProperties();
-      }}>
-        {/* Filter inputs */}
-      </form>
+    <div className="w-full max-w-xl space-y-3 rounded-2xl p-4 shadow">
+      <h2 className="text-xl font-semibold">Find your next place</h2>
+      <input
+        className="w-full rounded border p-2"
+        placeholder="Max budget (€)"
+        value={budget}
+        onChange={(e) => setBudget(e.target.value)}
+        inputMode="numeric"
+      />
+      <input
+        className="w-full rounded border p-2"
+        placeholder="Preferred districts (comma-separated)"
+        value={districts}
+        onChange={(e) => setDistricts(e.target.value)}
+      />
+      <button
+        className="rounded-2xl px-4 py-2 font-medium shadow"
+        onClick={() =>
+          onSearch({
+            maxBudget: budget ? Number(budget) : undefined,
+            districts: districts
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
+          })
+        }
+      >
+        Search
+      </button>
     </div>
   );
 }
 
-export default PropertySearch;
+import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
+
+export default function UserPreferencesForm() {
+  const [maxBudget, setMaxBudget] = useState<string>("");
+  const [districts, setDistricts] = useState<string>("");
+  const [metro, setMetro] = useState<boolean>(false);
+  const [walk, setWalk] = useState<string>("0");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch("/api/user-preferences");
+      if (res.ok) {
+        const { data } = await res.json();
+        if (data) {
+          setMaxBudget(data.max_budget ?? "");
+          setDistricts((data.preferred_districts ?? []).join(", "));
+          setMetro(!!data.must_have_metro);
+          setWalk(String(data.min_walkability ?? 0));
+        }
+      }
+    })();
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    await fetch("/api/user-preferences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        max_budget: maxBudget ? Number(maxBudget) : null,
+        preferred_districts: districts.split(",").map((s) => s.trim()).filter(Boolean),
+        must_have_metro: metro,
+        min_walkability: Number(walk),
+      }),
+    });
+    setSaving(false);
+  }
+
+  return (
+    <div className="space-y-3 rounded-2xl border p-4">
+      <h3 className="text-lg font-semibold">Your preferences</h3>
+      <input className="w-full rounded border p-2" placeholder="Max budget (€)" value={maxBudget} onChange={(e) => setMaxBudget(e.target.value)} />
+      <input className="w-full rounded border p-2" placeholder="Preferred districts" value={districts} onChange={(e) => setDistricts(e.target.value)} />
+      <label className="flex items-center gap-2">
+        <input type="checkbox" checked={metro} onChange={(e) => setMetro(e.target.checked)} /> Must have metro proximity
+      </label>
+      <label className="block">
+        <span>Min walkability (0–1)</span>
+        <input className="w-full rounded border p-2" value={walk} onChange={(e) => setWalk(e.target.value)} />
+      </label>
+      <button className="rounded-2xl px-4 py-2 font-medium shadow" onClick={save} disabled={saving}>
+        {saving ? "Saving..." : "Save"}
+      </button>
+    </div>
+  );
+}
+
+import { useState } from "react";
+
+export function usePropertySearch() {
+  const [results, setResults] = useState<{ property_id: number; match_score: number }[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  async function search(params: { maxBudget?: number; districts: string[] }) {
+    setLoading(true);
+    const res = await fetch("/api/property-matching", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: null,
+        max_budget: params.maxBudget ?? null,
+        preferred_districts: params.districts ?? [],
+      }),
+    });
+    const json = await res.json();
+    setResults(json.data ?? []);
+    setLoading(false);
+  }
+
+  return { results, loading, search };
+}
+
+import { useEffect, useState } from "react";
+
+export function useRecommendations(userId?: string) {
+  const [items, setItems] = useState<{ neighborhood_name: string; recommendation_score: number }[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      setLoading(true);
+      const res = await fetch("/api/recommendations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: userId }) });
+      const json = await res.json();
+      setItems(json.data ?? []);
+      setLoading(false);
+    })();
+  }, [userId]);
+
+  return { items, loading };
+}
+
+import Link from "next/link";
+
+export default function Home() {
+  return (
+    <main className="mx-auto max-w-3xl p-6">
+      <h1 className="mb-4 text-3xl font-bold">Hala Madrid 🏡</h1>
+      <p className="mb-6 text-gray-700">Find student-friendly housing in Madrid with smart recommendations.</p>
+      <div className="flex gap-3">
+        <Link className="rounded-2xl bg-black px-4 py-2 text-white" href="/search">Start Searching</Link>
+        <Link className="rounded-2xl border px-4 py-2" href="/profile">Your Profile</Link>
+      </div>
+    </main>
+  );
+}
+
+import Link from "next/link";
+
+export default function Home() {
+  return (
+    <main className="mx-auto max-w-3xl p-6">
+      <h1 className="mb-4 text-3xl font-bold">Hala Madrid 🏡</h1>
+      <p className="mb-6 text-gray-700">Find student-friendly housing in Madrid with smart recommendations.</p>
+      <div className="flex gap-3">
+        <Link className="rounded-2xl bg-black px-4 py-2 text-white" href="/search">Start Searching</Link>
+        <Link className="rounded-2xl border px-4 py-2" href="/profile">Your Profile</Link>
+      </div>
+    </main>
+  );
+}
+
+import { useEffect, useState } from "react";
+import UserPreferencesForm from "../components/UserPreferencesForm";
+import NeighborhoodMap from "../components/NeighborhoodMap";
+import { useRecommendations } from "../hooks/useRecommendations";
+
+export default function ProfilePage() {
+  const [userId, setUserId] = useState<string | undefined>();
+  const { items, loading } = useRecommendations(userId);
+
+  useEffect(() => {
+    // A simple client endpoint to get user id; alternatively use supabase client directly
+    fetch("/api/me").then(async (r) => {
+      const j = await r.json();
+      setUserId(j.user?.id);
+    });
+  }, []);
+
+  return (
+    <main className="mx-auto max-w-3xl space-y-6 p-6">
+      <UserPreferencesForm />
+      {loading ? (
+        <p>Loading recommendations…</p>
+      ) : (
+        <NeighborhoodMap neighborhoods={items.map((i) => ({ name: i.neighborhood_name, score: i.recommendation_score }))} />
+      )}
+    </main>
+  );
+}
+
