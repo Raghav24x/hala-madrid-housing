@@ -1,4 +1,4 @@
-mport { useState } from "react";
+import { useState } from "react";
 // If using shadcn: import { Button, Input } from "@/components/ui";
 
 type Props = {
